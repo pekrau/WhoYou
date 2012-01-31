@@ -18,5 +18,8 @@ class GET_Home(MethodMixin, GET):
         "Return a dictionary containing the data for the response."
         data = self.get_data_basic(resource, request, application)
         data['title'] = "%s %s" % (application.name, application.version)
-        data['descr'] = 'Simple accounts database for web applications.'
+        try:
+            data['descr'] = open(configuration.README_FILE).read()
+        except IOError:
+            data['descr'] = 'Simple accounts database for web applications.'
         return data

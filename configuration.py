@@ -49,7 +49,8 @@ else:
 SOURCE_DIR = os.path.dirname(__file__)
 STATIC_DIR = os.path.join(SOURCE_DIR, 'static')
 
-MASTER_DBFILE = os.path.join(DATA_DIR, 'master.sql3')
+README_FILE = os.path.join(SOURCE_DIR, 'README.md')
+MASTER_DB_FILE = os.path.join(DATA_DIR, 'master.sql3')
 
 
 def get_password_hexdigest(password):

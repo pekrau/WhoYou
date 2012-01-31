@@ -14,7 +14,7 @@ from whoyou import configuration
 class Database(object):
     "Interface to the WhoYou database."
 
-    def __init__(self, path=configuration.MASTER_DBFILE):
+    def __init__(self, path=configuration.MASTER_DB_FILE):
         self.path = path
 
     def open(self):
@@ -449,7 +449,7 @@ if __name__ == '__main__':
     import getpass
 
     db = Database()
-    if os.path.exists(configuration.MASTER_DBFILE):
+    if os.path.exists(configuration.MASTER_DB_FILE):
         db.open()
         print 'WhoYou database exists.'
     else:
