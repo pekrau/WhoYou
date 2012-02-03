@@ -33,17 +33,16 @@ class AccountsHtmlRepresentation(HtmlRepresentation):
 
 
 class GET_Accounts(MethodMixin, GET):
-    "Return the accounts list."
+    "Display the list of accounts."
 
     outreprs = (JsonRepresentation,
                 TextRepresentation,
                 AccountsHtmlRepresentation)
 
     def is_access(self):
-        return self.is_admin()
+        return self.is_login_admin()
 
     def get_data(self, resource, request, application):
-        self.allow_admin()
         data = self.get_data_basic(resource, request, application)
         data['title'] = 'Accounts'
         data['accounts'] = []
@@ -83,20 +82,21 @@ class AccountHtmlRepresentation(HtmlRepresentation):
 
 
 class GET_Account(MethodMixin, GET):
-    "Return the account data."
+    "Data for an account."
 
     outreprs = (JsonRepresentation,
                 TextRepresentation,
                 AccountHtmlRepresentation)
 
-    def is_access(self):
-        return self.is_admin() or self.login.name == self.account.name
-
-    def get_data(self, resource, request, application):
+    def set_current(self, resource, request, application):
         self.account = self.get_account(resource.variables)
         if not self.account:
             raise HTTP_NOT_FOUND
-        self.allow_access()
+
+    def is_access(self):
+        return self.is_login_admin() or self.login.name == self.account.name
+
+    def get_data(self, resource, request, application):
         data = self.get_data_basic(resource, request, application)
         data['title'] = "Account %s" % self.account
         data['account'] = self.account.get_data()
@@ -113,8 +113,111 @@ class GET_Account(MethodMixin, GET):
         return data
 
 
+class GET_AccountEdit(MethodMixin, GET):
+    "Edit an account."
+
+    outreprs = (JsonRepresentation,
+                TextRepresentation,
+                FormHtmlRepresentation)
+
+    fields = (PasswordField('password', title='Current password',
+                            required=True),
+              PasswordField('new_password', title='New password',
+                            descr="If blank, then password will not be changed."
+                            " If given, must be at least %s characters." %
+                            configuration.MIN_PASSWORD_LENGTH),
+              PasswordField('confirm_new_password',
+                            title='Confirm new password',
+                            descr='Must be given if a new password'
+                            ' is specified above.'),
+              StringField('email', title='Email', length=30),
+              TextField('description', title='Description'),
+              MultiSelectField('teams', title='Teams',
+                               check=False,
+                               descr='Check the teams this account'
+                               ' is to be member of.'),
+              HiddenField('url', descr='Referring URL.'))
+
+    def set_current(self, resource, request, application):
+        self.account = self.get_account(resource.variables)
+        if not self.account:
+            raise HTTP_NOT_FOUND
+
+    def is_access(self):
+        return self.is_login_admin() or self.login.name == self.account.name
+
+    def get_data(self, resource, request, application):
+        data = self.get_data_basic(resource, request, application)
+        data['title'] = "Edit account %s" % self.account
+        values = dict(name=self.account.name,
+                      email=self.account.email,
+                      description=self.account.description)
+        if self.is_login_admin():
+            skip = set(['password'])
+            fill = dict(teams=dict(options=[str(t)
+                                            for t in self.db.get_teams()]))
+            default = dict(teams=[str(t) for t in self.account.get_teams()])
+        else:
+            skip = set()
+            fill = dict()
+            default = dict()
+        default['url'] = request.headers['Referer'] or \
+                         application.get_url('account', self.account)
+        data['form'] = dict(fields=self.get_fields_data(skip=skip,
+                                                        fill=fill,
+                                                        default=default),
+                            values=values,
+                            title='Modify account data',
+                            href=resource.get_url(),
+                            cancel=application.get_url('account',
+                                                       self.account.name))
+        return data
+
+
+class POST_AccountEdit(MethodMixin, RedirectMixin, POST):
+    "Edit an account."
+
+    fields = GET_AccountEdit.fields
+
+    def set_current(self, resource, request, application):
+        self.account = self.get_account(resource.variables)
+        if not self.account:
+            raise HTTP_NOT_FOUND
+
+    def is_access(self):
+        return self.is_login_admin() or self.login.name == self.account.name
+
+    def handle(self, resource, request, application):
+        "Handle the request; perform actions according to the request."
+        if self.is_login_admin():
+            skip = set(['password'])
+        else:
+            skip = set()
+        values = self.parse_fields(request, skip=skip)
+        current = values.pop('password', '')
+        if current:
+            if self.account.password != configuration.get_password_hexdigest(current):
+                raise HTTP_FORBIDDEN('invalid current password')
+        new = values.pop('new_password')
+        confirm = values.pop('confirm_new_password', None)
+        if new:
+            if len(new) < configuration.MIN_PASSWORD_LENGTH:
+                raise HTTP_BAD_REQUEST("password must be at least %s characters"
+                                       % configuration.MIN_PASSWORD_LENGTH)
+            if new != confirm:
+                raise HTTP_BAD_REQUEST('password confirmation failed')
+            self.account.password = configuration.get_password_hexdigest(new)
+        self.account.email = values.get('email', None)
+        self.account.description = values.get('description', None)
+        self.account.save()
+        if self.is_login_admin():
+            self.account.set_teams(values.get('teams', []))
+        self.redirect = values.get('url',
+                                   application.get_url('account', self.account))
+
+
 class GET_AccountCreate(MethodMixin, GET):
-    "Return the create form for a new account."
+    "Create a new account."
 
     outreprs = (JsonRepresentation,
                 TextRepresentation,
@@ -139,7 +242,7 @@ class GET_AccountCreate(MethodMixin, GET):
                                descr='Check teams for membership.'))
 
     def is_access(self):
-        return self.is_admin()
+        return self.is_login_admin()
 
     def get_data(self, resource, request, application):
         data = self.get_data_basic(resource, request, application)
@@ -152,20 +255,16 @@ class GET_AccountCreate(MethodMixin, GET):
         return data
 
 
-class POST_AccountCreate(MethodMixin, POST):
-    """Perform the account creation.
-    The response is a HTTP 303 'See Other' redirection to the account resource.
-    There is no output representation for this resource and method.
-    """
+class POST_AccountCreate(MethodMixin, RedirectMixin, POST):
+    "Create a new account."
 
     fields = GET_AccountCreate.fields
 
     def is_access(self):
-        return self.is_admin()
+        return self.is_login_admin()
 
     def handle(self, resource, request, application):
         "Handle the request; perform actions according to the request."
-        self.allow_access()
         values = self.parse_fields(request)
         values['name'] = values['name'].strip()
         if len(values['name']) <= 3:
@@ -193,110 +292,4 @@ class POST_AccountCreate(MethodMixin, POST):
         self.account.description = values.get('description', None)
         self.account.save()
         self.account.set_teams(values.get('teams', []))
-
-    def get_response(self, resource, request, application):
-        return HTTP_SEE_OTHER(Location=application.get_url('account',
-                                                           self.account))
-
-
-class GET_AccountEdit(MethodMixin, GET):
-    "Return the edit form for an account."
-
-    outreprs = (JsonRepresentation,
-                TextRepresentation,
-                FormHtmlRepresentation)
-
-    fields = (PasswordField('password', title='Current password',
-                            required=True),
-              PasswordField('new_password', title='New password',
-                            descr="If blank, then password will not be changed."
-                            " If given, must be at least %s characters." %
-                            configuration.MIN_PASSWORD_LENGTH),
-              PasswordField('confirm_new_password',
-                            title='Confirm new password',
-                            descr='Must be given if a new password'
-                            ' is specified above.'),
-              StringField('email', title='Email', length=30),
-              TextField('description', title='Description'),
-              MultiSelectField('teams', title='Teams',
-                               check=False,
-                               descr='Check the teams this account'
-                               ' is to be member of.'))
-
-    def is_access(self):
-        return self.is_admin() or self.login.name == self.account.name
-
-    def get_data(self, resource, request, application):
-        self.account = self.get_account(resource.variables)
-        if not self.account:
-            raise HTTP_NOT_FOUND
-        self.allow_access()
-        data = self.get_data_basic(resource, request, application)
-        data['title'] = "Edit account %s" % self.account
-        values = dict(name=self.account.name,
-                      email=self.account.email,
-                      description=self.account.description)
-        if self.is_admin():
-            skip = set(['password'])
-            fill = dict(teams=dict(options=[str(t)
-                                            for t in self.db.get_teams()]))
-            default = dict(teams=[str(t) for t in self.account.get_teams()])
-        else:
-            skip = set()
-            fill = dict()
-            default = dict()
-        data['form'] = dict(fields=self.get_fields_data(skip=skip,
-                                                        fill=fill,
-                                                        default=default),
-                            values=values,
-                            title='Modify account data',
-                            href=resource.get_url(),
-                            cancel=application.get_url('account',
-                                                       self.account.name))
-        return data
-
-
-class POST_AccountEdit(MethodMixin, POST):
-    """Perform the edit on an account.
-    The response is a HTTP 303 'See Other' redirection to the account resource.
-    There is no output representation for this resource and method.
-    """
-
-    fields = GET_AccountEdit.fields
-
-    def is_access(self):
-        return self.is_admin() or self.login.name == self.account.name
-
-    def handle(self, resource, request, application):
-        "Handle the request; perform actions according to the request."
-        self.account = self.get_account(resource.variables)
-        if not self.account:
-            raise HTTP_NOT_FOUND
-        self.allow_access()
-        if self.is_admin():
-            skip = set(['password'])
-        else:
-            skip = set()
-        values = self.parse_fields(request, skip=skip)
-        current = values.pop('password', '')
-        if current:
-            if self.account.password != configuration.get_password_hexdigest(current):
-                raise HTTP_FORBIDDEN('invalid current password')
-        new = values.pop('new_password')
-        confirm = values.pop('confirm_new_password', None)
-        if new:
-            if len(new) < configuration.MIN_PASSWORD_LENGTH:
-                raise HTTP_BAD_REQUEST("password must be at least %s characters"
-                                       % configuration.MIN_PASSWORD_LENGTH)
-            if new != confirm:
-                raise HTTP_BAD_REQUEST('password confirmation failed')
-            self.account.password = configuration.get_password_hexdigest(new)
-        self.account.email = values.get('email', None)
-        self.account.description = values.get('description', None)
-        self.account.save()
-        if self.is_admin():
-            self.account.set_teams(values.get('teams', []))
-
-    def get_response(self, resource, request, application):
-        return HTTP_SEE_OTHER(Location=application.get_url('account',
-                                                           self.account))
+        self.redirect = application.get_url('account', self.account)

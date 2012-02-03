@@ -8,8 +8,8 @@ import sqlite3
 
 from wrapid.fields import *
 from wrapid.response import *
+from wrapid.resource import GET, POST
 from wrapid.utils import basic_authentication
-from wrapid.resource import Resource, GET, POST
 
 from . import configuration
 from .database import Database, Account, Team
@@ -29,26 +29,50 @@ class MethodMixin(object):
             self.login = self.db.get_account(name, password=password)
         except (KeyError, ValueError):
             raise HTTP_UNAUTHORIZED_BASIC_CHALLENGE(realm=application.name)
+        self.set_current(resource, request, application)
+        self.check_access()
 
     def finalize(self):
         self.db.close()
 
+    def set_current(self, resource, request, application):
+        "Set the current entities to operate on."
+        pass
+
+    def check_access(self):
+        "Raise HTTP FORBIDDEN if login account is not allowed to read this."
+        if not self.is_access():
+            raise HTTP_FORBIDDEN("disallowed for login '%s'" % self.login)
+
+    def is_access(self):
+        "Is the login account allowed to access this method of the resource?"
+        return True
+
+    def is_login_admin(self):
+        "Is the login account 'admin' or member of the 'admin' team?"
+        if self.login.name == 'admin': return True
+        team = self.db.get_team('admin')
+        if team:
+            return team.is_member(self.login)
+        else:
+            return False
+
     def get_data_basic(self, resource, request, application):
         "Return a dictionary with the basic data for the resource."
         links = []
-        if self.is_admin():
+        if self.is_login_admin():
             links.append(dict(title='Accounts',
                               resource='Account list',
                               href=application.get_url('accounts')))
         links.append(dict(title='My account',
                           resource='Account',
                           href=application.get_url('account', self.login.name)))
-        if self.is_admin():
+        if self.is_login_admin():
             links.append(dict(title='Teams',
                               resource='Team list',
                               href=application.get_url('teams')))
-        links.append(dict(title='Documentation',
-                          resource='Documentation',
+        links.append(dict(title='Documentation: API',
+                          resource='Documentation API',
                           href=application.get_url('doc')))
         return dict(application=dict(name=application.name,
                                      version=application.version,
@@ -59,29 +83,6 @@ class MethodMixin(object):
                     links=links,
                     outreprs=self.get_outrepr_links(resource, application),
                     loginname=self.login.name)
-
-    def is_admin(self):
-        "Is the login account 'admin' or member of the 'admin' team?"
-        if self.login.name == 'admin': return True
-        team = self.db.get_team('admin')
-        if team:
-            return team.is_member(self.login)
-        else:
-            return False
-
-    def allow_admin(self):
-        "Raise HTTP FORBIDDEN if login account is not admin."
-        if not self.is_admin():
-            raise HTTP_FORBIDDEN("'admin' login required")
-
-    def is_access(self):
-        "Is the login account allowed to access this method of the resource?"
-        return True
-
-    def allow_access(self):
-        "Raise HTTP FORBIDDEN if login account is not allowed to read this."
-        if not self.is_access():
-            raise HTTP_FORBIDDEN("disallowed for login '%s'" % self.login)
 
     def get_account(self, variables):
         """Get the account instance according to the variables data.
@@ -130,3 +131,11 @@ class MethodMixin(object):
                     variables['FORMAT'] = None
                     return result
         return None
+
+
+class RedirectMixin(object):
+    "Mixin providing a redirect response."
+
+    def get_response(self, resource, request, application):
+        "Redirect to a previously specified URL."
+        return HTTP_SEE_OTHER(Location=self.redirect)

@@ -1,7 +1,0 @@
-WhoYou: Simple accounts database for web applications.
-
-- mechanism for user to view/edit his own account, then go back to original page
-- tests: edit test account, and check results
-- delete an account or group?
-  what if there are dependencies in other systems?
-  or: make inactive? what would that mean?

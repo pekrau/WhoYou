@@ -17,7 +17,7 @@ DEBUG = True
 HOST = dict(title='SciLifeLab tools',
             href='http://localhost/')
 
-DATADIR = '/var/local/whoyou'
+DATA_DIR = '/var/local/whoyou'
 
 SALT = 'default123'
 MIN_PASSWORD_LENGTH = 6

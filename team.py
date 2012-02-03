@@ -34,17 +34,16 @@ class TeamsHtmlRepresentation(HtmlRepresentation):
 
 
 class GET_Teams(MethodMixin, GET):
-    "Return the teams list."
+    "Display the list of teams."
 
     outreprs = (JsonRepresentation,
                 TextRepresentation,
                 TeamsHtmlRepresentation)
 
     def is_access(self):
-        return self.is_admin()
+        return self.is_login_admin()
 
     def get_data(self, resource, request, application):
-        self.allow_admin()
         data = self.get_data_basic(resource, request, application)
         data['title'] = 'Teams'
         data['teams'] = []
@@ -87,20 +86,21 @@ class TeamHtmlRepresentation(HtmlRepresentation):
 
 
 class GET_Team(MethodMixin, GET):
-    "Return the team data."
+    "Data for a team."
 
     outreprs = (JsonRepresentation,
                 TextRepresentation,
                 TeamHtmlRepresentation)
 
-    def is_access(self):
-        return self.is_admin() or self.team.is_member(self.login)
-
-    def get_data(self, resource, request, application):
+    def set_current(self, resource, request, application):
         self.team = self.get_team(resource.variables)
         if not self.team:
             raise HTTP_NOT_FOUND
-        self.allow_access()
+
+    def is_access(self):
+        return self.is_login_admin() or self.team.is_member(self.login)
+
+    def get_data(self, resource, request, application):
         data = self.get_data_basic(resource, request, application)
         data['title'] = "Team %s" % self.team
         data['team'] = self.team.get_data()
@@ -117,8 +117,67 @@ class GET_Team(MethodMixin, GET):
         return data
 
 
+class GET_TeamEdit(MethodMixin, GET):
+    "Edit a team."
+
+    outreprs = (JsonRepresentation,
+                TextRepresentation,
+                FormHtmlRepresentation)
+
+    fields = (TextField('description', title='Description'),
+              MultiSelectField('administrators', title='Administrators',
+                               check=False,
+                               descr='Check the members to be'
+                               ' administrators of this group.'))
+
+    def set_current(self, resource, request, application):
+        self.team = self.get_team(resource.variables)
+        if not self.team:
+            raise HTTP_NOT_FOUND
+
+    def is_access(self):
+        return self.is_login_admin() or self.team.is_admin(self.login)
+
+    def get_data(self, resource, request, application):
+        data = self.get_data_basic(resource, request, application)
+        data['title'] = "Edit team %s" % self.team
+        values = dict(description=self.team.description)
+        fill = dict(administrators=
+                    dict(options=[str(m) for m in self.team.get_members()]))
+        default = dict(administrators=[str(a) for a in self.team.get_admins()])
+        data['form'] = dict(fields=self.get_fields_data(fill=fill,
+                                                        default=default),
+                            values=values,
+                            title='Modify team data',
+                            href=resource.get_url(),
+                            cancel=application.get_url('team', self.team))
+        return data
+
+
+class POST_TeamEdit(MethodMixin, RedirectMixin, POST):
+    "Edit a team."
+
+    fields = GET_TeamEdit.fields
+
+    def set_current(self, resource, request, application):
+        self.team = self.get_team(resource.variables)
+        if not self.team:
+            raise HTTP_NOT_FOUND
+
+    def is_access(self):
+        return self.is_login_admin() or self.team.is_admin(self.login)
+
+    def handle(self, resource, request, application):
+        "Handle the request; perform actions according to the request."
+        values = self.parse_fields(request)
+        self.team.description = values.get('description', None)
+        self.team.save()
+        self.team.set_admins(values.get('administrators', []))
+        self.redirect = application.get_url('team', self.team)
+
+
 class GET_TeamCreate(MethodMixin, GET):
-    "Return the create form for a new team."
+    "Create a new team."
 
     outreprs = (JsonRepresentation,
                 TextRepresentation,
@@ -132,7 +191,7 @@ class GET_TeamCreate(MethodMixin, GET):
               TextField('description', title='Description'))
 
     def is_access(self):
-        return self.is_admin()
+        return self.is_login_admin()
 
     def get_data(self, resource, request, application):
         data = self.get_data_basic(resource, request, application)
@@ -144,20 +203,16 @@ class GET_TeamCreate(MethodMixin, GET):
         return data
         
 
-class POST_TeamCreate(MethodMixin, POST):
-    """Perform the team creation.
-    The response is a HTTP 303 'See Other' redirection to the team resource.
-    There is no output representation for this resource and method.
-    """
+class POST_TeamCreate(MethodMixin, RedirectMixin, POST):
+    "Create a new team."
 
     fields = GET_TeamCreate.fields
 
     def is_access(self):
-        return self.is_admin()
+        return self.is_login_admin()
 
     def handle(self, resource, request, application):
         "Handle the request; perform actions according to the request."
-        self.allow_access()
         values = self.parse_fields(request)
         values['name'] = values['name'].strip()
         if len(values['name']) <= 3:
@@ -176,68 +231,4 @@ class POST_TeamCreate(MethodMixin, POST):
         self.team.name= values['name']
         self.team.description = values.get('description', None)
         self.team.save()
-
-    def get_response(self, resource, request, application):
-        return HTTP_SEE_OTHER(Location=application.get_url('team', self.team))
-
-
-class GET_TeamEdit(MethodMixin, GET):
-    "Return the edit form for an team."
-
-    outreprs = (JsonRepresentation,
-                TextRepresentation,
-                FormHtmlRepresentation)
-
-    fields = (TextField('description', title='Description'),
-              MultiSelectField('administrators', title='Administrators',
-                               check=False,
-                               descr='Check the members to be'
-                               ' administrators of this group.'))
-
-    def is_access(self):
-        return self.is_admin() or self.team.is_admin(self.login)
-
-    def get_data(self, resource, request, application):
-        team = self.get_team(resource.variables)
-        if not team:
-            raise HTTP_NOT_FOUND
-        self.allow_access()
-        data = self.get_data_basic(resource, request, application)
-        data['title'] = "Edit team %s" % team
-        values = dict(description=team.description)
-        fill = dict(administrators=dict(options=[str(m)
-                                                 for m in team.get_members()]))
-        default = dict(administrators=[str(a) for a in team.get_admins()])
-        data['form'] = dict(fields=self.get_fields_data(fill=fill,
-                                                        default=default),
-                            values=values,
-                            title='Modify team data',
-                            href=resource.get_url(),
-                            cancel=application.get_url('team', team))
-        return data
-
-
-class POST_TeamEdit(MethodMixin, POST):
-    """Perform the edit on an team.
-    The response is a HTTP 303 'See Other' redirection to the team resource.
-    There is no output representation for this resource and method.
-    """
-
-    fields = GET_TeamEdit.fields
-
-    def is_access(self):
-        return self.is_admin() or self.team.is_admin(self.login)
-
-    def handle(self, resource, request, application):
-        "Handle the request; perform actions according to the request."
-        self.team = self.get_team(resource.variables)
-        if not self.team:
-            raise HTTP_NOT_FOUND
-        self.allow_access()
-        values = self.parse_fields(request)
-        self.team.description = values.get('description', None)
-        self.team.save()
-        self.team.set_admins(values.get('administrators', []))
-
-    def get_response(self, resource, request, application):
-        return HTTP_SEE_OTHER(Location=application.get_url('team', self.team))
+        self.redirect = application.get_url('team', self.team)
