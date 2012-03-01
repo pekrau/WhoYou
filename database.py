@@ -5,6 +5,7 @@ Interface to the database.
 
 import sqlite3
 import json
+import hashlib
 
 from wrapid.utils import rstr
 
@@ -56,7 +57,7 @@ class Database(object):
         account = Account(self)
         account.name = name
         if password:
-            account.password = configuration.get_password_hexdigest(password)
+            account.password = password
         account.description = description
         account.save()
         return account
@@ -85,14 +86,6 @@ class Database(object):
         if password:
             account.check_password(password)
         return account
-
-    def get_account_data(self, name, password=None):
-        """Return the data dictionary for the given user account.
-        If the password is given, then authenticate.
-        Raise KeyError if no such account.
-        Raise ValueError if incorrect password.
-        """
-        return self.get_account(name, password=password).get_data()
 
     def create_team(self, name, description=None):
         try:
@@ -128,12 +121,6 @@ class Database(object):
             self.team_cache[team.name] = team
             return team
 
-    def get_team_data(self, name):
-        """Return the data dictionary for the given team.
-        Raise KeyError if no such account.
-        """
-        return self.get_team(name).get_data()
-
     def save(self, item):
         "Save the instance (Account or Team)."
         item.save(self)
@@ -143,7 +130,7 @@ class Database(object):
         self.execute('CREATE TABLE account'
                      '(id INTEGER PRIMARY KEY,'
                      ' name TEXT UNIQUE NOT NULL,'
-                     ' password TEXT,'
+                     ' password TEXT,'  # Stored as hexdigest
                      ' email TEXT,'
                      ' description TEXT,'
                      ' properties TEXT)')
@@ -171,7 +158,7 @@ class Account(object):
         else:
             self.id = None
             self.name = None
-            self.password = None
+            self._hexdigest = None
             self.description = None
             self.email = None
             self.properties = dict()
@@ -192,15 +179,12 @@ class Account(object):
             raise KeyError("no such Account '%s'" % name)
         self.id = record[0]
         self.name = str(name)
-        self.password = record[1]
+        self._hexdigest = record[1]
         self.description = record[2]
         self.email = record[3]
         self.properties = rstr(json.loads(record[4]))
 
     def save(self):
-        """It is assumed that the password has already been
-        converted to its hash hex digest using the salt.
-        """
         assert self.name
         assert len(self.name.split()) == 1
         cursor = self.db.execute('SELECT id FROM account WHERE name=?',
@@ -273,17 +257,34 @@ class Account(object):
                 team.add_member(self)
         self.db.commit()
 
+    @staticmethod
+    def get_password_hexdigest(password):
+        "Convert the password to its hexdigest."
+        md5 = hashlib.md5(configuration.SALT)
+        md5.update(password)
+        return md5.hexdigest()
+
+    def get_password(self):
+        "Return the hexdigest of the password."
+        return self._hexdigest
+
+    def set_password(self, password):
+        "Set the hexdigest of the password for the account."
+        self._hexdigest = self.get_password_hexdigest(password)
+
+    password = property(get_password, set_password)
+
     def check_password(self, password):
         """Raise ValueError if the password does not match.
-        The incoming password must be in the clear;
-        it has *not* been converted to the hash hex digest."""
+        The given password must be in the clear;
+        it must *not* have been converted to its hexdigest."""
         if self.password:
-            if configuration.get_password_hexdigest(password) != self.password:
+            if self.get_password_hexdigest(password) != self.password:
                 raise ValueError('incorrect password')
 
 
 class Team(object):
-    "User account team."
+    "Team: group of user accounts."
 
     def __init__(self, db, name=None):
         self.db = db

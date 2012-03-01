@@ -3,34 +3,38 @@
 Mixin class for methods: authentication and database connection.
 """
 
-import logging
-import sqlite3
-
 from wrapid.fields import *
 from wrapid.response import *
-from wrapid.resource import GET, POST
-from wrapid.utils import basic_authentication
+from wrapid.resource import GET, POST, RedirectMixin
+from wrapid.login import LoginMixin
 
 from . import configuration
 from .database import Database, Account, Team
 
 
-class MethodMixin(object):
+class MethodMixin(LoginMixin):
     "Mixin class for Method subclasses; database connect and authentication."
 
     def prepare(self, resource, request, application):
         "Connect to the database and authenticate the user."
         self.db = Database()
-        self.db.open()
-        try:
-            name, password = basic_authentication(request,
-                                                  application.name,
-                                                  require=True)
-            self.login = self.db.get_account(name, password=password)
-        except (KeyError, ValueError):
-            raise HTTP_UNAUTHORIZED_BASIC_CHALLENGE(realm=application.name)
+        self.db.open()      # Database must be open before logging in.
+        self.set_login(resource, request, application)
         self.set_current(resource, request, application)
         self.check_access()
+
+    def get_account(self, name, password=None):
+        """Return a dictionary describing the account:
+        name, description, email, teams and properties.
+        If password is provided, authenticate the account.
+        Raise KeyError if there is no such account.
+        Raise ValueError if the password does not match.
+        """
+        return self.db.get_account(name, password).get_data()
+
+    def get_account_anonymous(self):
+        "Anonymous login is disallowed."
+        raise KeyError
 
     def finalize(self):
         self.db.close()
@@ -41,24 +45,24 @@ class MethodMixin(object):
 
     def check_access(self):
         "Raise HTTP FORBIDDEN if login account is not allowed to read this."
-        if not self.is_access():
-            raise HTTP_FORBIDDEN("disallowed for login '%s'" % self.login)
+        if not self.is_accessible():
+            raise HTTP_FORBIDDEN("disallowed for login '%(name)s'" % self.login)
 
-    def is_access(self):
+    def is_accessible(self):
         "Is the login account allowed to access this method of the resource?"
         return True
 
     def is_login_admin(self):
         "Is the login account 'admin' or member of the 'admin' team?"
-        if self.login.name == 'admin': return True
+        if self.login['name'] == 'admin': return True
         team = self.db.get_team('admin')
         if team:
-            return team.is_member(self.login)
+            return team.is_member(self.db.get_account(self.login['name']))
         else:
             return False
 
-    def get_data_basic(self, resource, request, application):
-        "Return a dictionary with the basic data for the resource."
+    def get_data_links(self, resource, request, application):
+        "Return the links response data."
         links = []
         if self.is_login_admin():
             links.append(dict(title='Accounts',
@@ -66,7 +70,8 @@ class MethodMixin(object):
                               href=application.get_url('accounts')))
         links.append(dict(title='My account',
                           resource='Account',
-                          href=application.get_url('account', self.login.name)))
+                          href=application.get_url('account',
+                                                   self.login['name'])))
         if self.is_login_admin():
             links.append(dict(title='Teams',
                               resource='Team list',
@@ -74,68 +79,4 @@ class MethodMixin(object):
         links.append(dict(title='Documentation: API',
                           resource='Documentation API',
                           href=application.get_url('doc')))
-        return dict(application=dict(name=application.name,
-                                     version=application.version,
-                                     href=application.url,
-                                     host=configuration.HOST),
-                    resource=resource.type,
-                    href=resource.url,
-                    links=links,
-                    outreprs=self.get_outrepr_links(resource, application),
-                    loginname=self.login.name)
-
-    def get_account(self, variables):
-        """Get the account instance according to the variables data.
-        Handle the case where an account name containing a dot and
-        a short (<=4 chars) last name, which will be confused for
-        a format specification.
-        Returns None if no account could be identified.
-        """
-        try:
-            return Account(self.db, variables['account'])
-        except KeyError:
-            return None
-        except ValueError:
-            if variables.get('FORMAT'):
-                name = variables['account'] + variables['FORMAT']
-                try:
-                    result = Account(self.db, name)
-                except ValueError:
-                    return None
-                else:
-                    variables['account'] += variables['FORMAT']
-                    variables['FORMAT'] = None
-                    return result
-        return None
-
-    def get_team(self, variables):
-        """Get the team instance according to the variables data.
-        Handle the case where an team name containing a dot and
-        a short (<=4 chars) last name, which will be confused for
-        a format specification.
-        Returns None if no team could be identified.
-        """
-        try:
-            return Team(self.db, variables['team'])
-        except KeyError:
-            return None
-        except ValueError:
-            if variables.get('FORMAT'):
-                name = variables['team'] + variables['FORMAT']
-                try:
-                    result = Team(self.db, name)
-                except ValueError:
-                    return None
-                else:
-                    variables['team'] += variables['FORMAT']
-                    variables['FORMAT'] = None
-                    return result
-        return None
-
-
-class RedirectMixin(object):
-    "Mixin providing a redirect response."
-
-    def get_response(self, resource, request, application):
-        "Redirect to a previously specified URL."
-        return HTTP_SEE_OTHER(Location=self.redirect)
+        return links

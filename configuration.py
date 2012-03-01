@@ -9,10 +9,8 @@ import sys
 import socket
 import urllib
 
-import wrapid.utils
 
-
-DEBUG = True
+DEBUG = False
 
 HOST = dict(title='SciLifeLab tools',
             href='http://localhost/')
@@ -20,6 +18,7 @@ HOST = dict(title='SciLifeLab tools',
 DATA_DIR = '/var/local/whoyou'
 
 SALT = 'default123'
+
 MIN_PASSWORD_LENGTH = 6
 
 
@@ -51,7 +50,3 @@ STATIC_DIR = os.path.join(SOURCE_DIR, 'static')
 
 README_FILE = os.path.join(SOURCE_DIR, 'README.md')
 MASTER_DB_FILE = os.path.join(DATA_DIR, 'master.sql3')
-
-
-def get_password_hexdigest(password):
-    return wrapid.utils.get_password_hexdigest(password, salt=SALT)

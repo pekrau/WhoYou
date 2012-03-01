@@ -3,7 +3,6 @@
 Team resources.
 """
 
-import logging
 import string
 
 from .database import Account
@@ -34,18 +33,23 @@ class TeamsHtmlRepresentation(HtmlRepresentation):
 
 
 class GET_Teams(MethodMixin, GET):
-    "Display the list of teams."
+    "The list of teams."
 
-    outreprs = (JsonRepresentation,
+    outreprs = [JsonRepresentation,
                 TextRepresentation,
-                TeamsHtmlRepresentation)
+                TeamsHtmlRepresentation]
 
-    def is_access(self):
+    def is_accessible(self):
         return self.is_login_admin()
 
-    def get_data(self, resource, request, application):
-        data = self.get_data_basic(resource, request, application)
-        data['title'] = 'Teams'
+    def get_data_operations(self, resource, request, application):
+        "Return the operations response data."
+        return [dict(title='Create team',
+                     href=application.get_url('team'))]
+
+    def get_data_resource(self, resource, request, application):
+        "Return the dictionary with the resource-specific response data."
+        data = dict(title='Teams')
         data['teams'] = []
         for team in self.db.get_teams():
             teamdata = team.get_data()
@@ -57,8 +61,6 @@ class GET_Teams(MethodMixin, GET):
                                    is_admin=team.is_admin(account))
                 teamdata['members'].append(accountdata)
             data['teams'].append(teamdata)
-        data['operations'] = [dict(title='Create team',
-                                   href=application.get_url('team'))]
         return data
 
 
@@ -85,24 +87,52 @@ class TeamHtmlRepresentation(HtmlRepresentation):
         return table
 
 
-class GET_Team(MethodMixin, GET):
-    "Data for a team."
-
-    outreprs = (JsonRepresentation,
-                TextRepresentation,
-                TeamHtmlRepresentation)
+class TeamMixin(object):
+    "Mixin class to set the team to operate on."
 
     def set_current(self, resource, request, application):
-        self.team = self.get_team(resource.variables)
-        if not self.team:
-            raise HTTP_NOT_FOUND
+        """Set the team to operate on.
+        This handles the case where a team name contains a dot
+        and a short (<=4 chars) last name, which will otherwise
+        be confused for a FORMAT specification.
+        """
+        variables = resource.variables
+        try:
+            self.team = Team(self.db, variables['team'])
+        except KeyError:
+            if not variables.get('FORMAT'):
+                raise HTTP_NOT_FOUND
+            name = variables['team'] + variables['FORMAT']
+            try:
+                self.team = Team(self.db, name)
+            except KeyError:
+                raise HTTP_NOT_FOUND
+            else:
+                resource.undo_format_specifier('team')
 
-    def is_access(self):
-        return self.is_login_admin() or self.team.is_member(self.login)
+    def is_login_member(self):
+        "Is the login account member of the team to operate on?"
+        return self.team.is_member(self.db.get_account(self.login['name']))
 
-    def get_data(self, resource, request, application):
-        data = self.get_data_basic(resource, request, application)
-        data['title'] = "Team %s" % self.team
+
+class GET_Team(TeamMixin, MethodMixin, GET):
+    "Data for a team."
+
+    outreprs = [JsonRepresentation,
+                TextRepresentation,
+                TeamHtmlRepresentation]
+
+    def is_accessible(self):
+        return self.is_login_admin() or self.is_login_member()
+
+    def get_data_operations(self, resource, request, application):
+        "Return the operations response data."
+        return [dict(title='Edit team',
+                     href=application.get_url('team', self.team.name, 'edit'))]
+
+    def get_data_resource(self, resource, request, application):
+        "Return the dictionary with the resource-specific response data."
+        data = dict(title="Team %s" % self.team)
         data['team'] = self.team.get_data()
         members = []
         for name in data['team'].pop('members'):
@@ -111,18 +141,15 @@ class GET_Team(MethodMixin, GET):
                                 href=application.get_url('account', name),
                                 is_admin=is_admin))
         data['team']['members'] = members
-        url = application.get_url('team', self.team.name, 'edit')
-        data['operations'] = [dict(title='Edit team',
-                                   href=url)]
         return data
 
 
-class GET_TeamEdit(MethodMixin, GET):
+class GET_TeamEdit(TeamMixin, MethodMixin, GET):
     "Edit a team."
 
-    outreprs = (JsonRepresentation,
+    outreprs = [JsonRepresentation,
                 TextRepresentation,
-                FormHtmlRepresentation)
+                FormHtmlRepresentation]
 
     fields = (TextField('description', title='Description'),
               MultiSelectField('administrators', title='Administrators',
@@ -130,17 +157,12 @@ class GET_TeamEdit(MethodMixin, GET):
                                descr='Check the members to be'
                                ' administrators of this group.'))
 
-    def set_current(self, resource, request, application):
-        self.team = self.get_team(resource.variables)
-        if not self.team:
-            raise HTTP_NOT_FOUND
+    def is_accessible(self):
+        return self.is_login_admin() or self.is_login_member()
 
-    def is_access(self):
-        return self.is_login_admin() or self.team.is_admin(self.login)
-
-    def get_data(self, resource, request, application):
-        data = self.get_data_basic(resource, request, application)
-        data['title'] = "Edit team %s" % self.team
+    def get_data_resource(self, resource, request, application):
+        "Return the dictionary with the resource-specific response data."
+        data = dict(title="Edit team %s" % self.team)
         values = dict(description=self.team.description)
         fill = dict(administrators=
                     dict(options=[str(m) for m in self.team.get_members()]))
@@ -148,24 +170,20 @@ class GET_TeamEdit(MethodMixin, GET):
         data['form'] = dict(fields=self.get_fields_data(fill=fill,
                                                         default=default),
                             values=values,
+                            label='Save',
                             title='Modify team data',
                             href=resource.get_url(),
                             cancel=application.get_url('team', self.team))
         return data
 
 
-class POST_TeamEdit(MethodMixin, RedirectMixin, POST):
+class POST_TeamEdit(TeamMixin, MethodMixin, RedirectMixin, POST):
     "Edit a team."
 
     fields = GET_TeamEdit.fields
 
-    def set_current(self, resource, request, application):
-        self.team = self.get_team(resource.variables)
-        if not self.team:
-            raise HTTP_NOT_FOUND
-
-    def is_access(self):
-        return self.is_login_admin() or self.team.is_admin(self.login)
+    def is_accessible(self):
+        return self.is_login_admin() or self.is_login_member()
 
     def handle(self, resource, request, application):
         "Handle the request; perform actions according to the request."
@@ -173,15 +191,15 @@ class POST_TeamEdit(MethodMixin, RedirectMixin, POST):
         self.team.description = values.get('description', None)
         self.team.save()
         self.team.set_admins(values.get('administrators', []))
-        self.redirect = application.get_url('team', self.team)
+        self.set_redirect(application.get_url('team', self.team))
 
 
 class GET_TeamCreate(MethodMixin, GET):
-    "Create a new team."
+    "The form to create a new team."
 
-    outreprs = (JsonRepresentation,
+    outreprs = [JsonRepresentation,
                 TextRepresentation,
-                FormHtmlRepresentation)
+                FormHtmlRepresentation]
 
     fields = (StringField('name', title='Name',
                           required=True,
@@ -190,14 +208,15 @@ class GET_TeamCreate(MethodMixin, GET):
                           ' dash (-), underscore (_) and dot (.)'),
               TextField('description', title='Description'))
 
-    def is_access(self):
+    def is_accessible(self):
         return self.is_login_admin()
 
-    def get_data(self, resource, request, application):
-        data = self.get_data_basic(resource, request, application)
-        data['title'] = 'Create team'
+    def get_data_resource(self, resource, request, application):
+        "Return the dictionary with the resource-specific response data."
+        data = dict(title='Create team')
         data['form'] = dict(fields=self.get_fields_data(),
                             title='Enter data for new team',
+                            label='Create',
                             href=resource.get_url(),
                             cancel=application.get_url('teams'))
         return data
@@ -208,7 +227,7 @@ class POST_TeamCreate(MethodMixin, RedirectMixin, POST):
 
     fields = GET_TeamCreate.fields
 
-    def is_access(self):
+    def is_accessible(self):
         return self.is_login_admin()
 
     def handle(self, resource, request, application):
@@ -231,4 +250,4 @@ class POST_TeamCreate(MethodMixin, RedirectMixin, POST):
         self.team.name= values['name']
         self.team.description = values.get('description', None)
         self.team.save()
-        self.redirect = application.get_url('team', self.team)
+        self.set_redirect(application.get_url('team', self.team))
