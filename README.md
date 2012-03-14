@@ -15,7 +15,7 @@ the server.
 The account passwords are stored as hashes using a salt which must
 be set at installation time.
 
-The source code relies on Python 2.6:
+The system is written in Python 2.6; 2.7 should also work.
 
 - [https://github.com/pekrau/whoyou](https://github.com/pekrau/whoyou):
   Source code for the WhoYou system.
@@ -24,5 +24,5 @@ The source code relies on Python 2.6:
 - [https://github.com/pekrau/hypertext](https://github.com/pekrau/hypertext):
   Package **HyperText** for producing the HTML of the web service interface.
 
-The Sqlite3 database system is used as storage back-end in the current
-implementation. This is included in the standard Python distribution.
+The **Sqlite3** database system is used as storage back-end in the current
+implementation. It is included in the standard Python distribution.

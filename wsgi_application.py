@@ -16,16 +16,14 @@ from whoyou.team import *
 from whoyou.documentation import *
 
 # Package dependency
-assert wrapid.__version__ == '12.2'
+assert wrapid.__version__ == '12.3'
 
 
-class WhoYou(Application):
-    version = whoyou.__version__
-    debug   = configuration.DEBUG
-    host    = configuration.HOST
+application = Application(name='WhoYou',
+                          version=whoyou.__version__,
+                          host=configuration.HOST,
+                          debug=configuration.DEBUG)
 
-
-application = WhoYou()
 
 # Home
 application.append(Resource('/',
