@@ -83,7 +83,7 @@ class TeamHtmlRepresentation(HtmlRepresentation):
         table.append(TR(TH('Members'),
                         TD(' '.join(members))))
         table.append(TR(TH('Description'),
-                        TD(markdown_to_html(team.get('description')))))
+                        TD(self.to_html(team.get('description')))))
         return table
 
 
@@ -151,7 +151,9 @@ class GET_TeamEdit(TeamMixin, MethodMixin, GET):
                 TextRepresentation,
                 FormHtmlRepresentation]
 
-    fields = (TextField('description', title='Description'),
+    fields = (TextField('description', title='Description',
+                        descr=' In [Markdown](http://daringfireball.net/'
+                        'projects/markdown/) format.'),
               MultiSelectField('administrators', title='Administrators',
                                check=False,
                                descr='Check the members to be'
@@ -167,7 +169,7 @@ class GET_TeamEdit(TeamMixin, MethodMixin, GET):
         fill = dict(administrators=
                     dict(options=[str(m) for m in self.team.get_members()]))
         default = dict(administrators=[str(a) for a in self.team.get_admins()])
-        data['form'] = dict(fields=self.get_fields_data(fill=fill,
+        data['form'] = dict(fields=self.get_data_fields(fill=fill,
                                                         default=default),
                             values=values,
                             label='Save',
@@ -214,7 +216,7 @@ class GET_TeamCreate(MethodMixin, GET):
     def get_data_resource(self, resource, request, application):
         "Return the dictionary with the resource-specific response data."
         data = dict(title='Create team')
-        data['form'] = dict(fields=self.get_fields_data(),
+        data['form'] = dict(fields=self.get_data_fields(),
                             title='Enter data for new team',
                             label='Create',
                             href=resource.get_url(),

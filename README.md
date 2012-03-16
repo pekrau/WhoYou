@@ -23,6 +23,9 @@ The system is written in Python 2.6; 2.7 should also work.
   Package **wrapid** providing the web service framework.
 - [https://github.com/pekrau/hypertext](https://github.com/pekrau/hypertext):
   Package **HyperText** for producing the HTML of the web service interface.
+- [http://pypi.python.org/pypi/Markdown](http://pypi.python.org/pypi/Markdown):
+  Package **Markdown** for producing HTML from text using the simple markup
+  language [Markdown](http://daringfireball.net/projects/markdown/).
 
 The **Sqlite3** database system is used as storage back-end in the current
 implementation. It is included in the standard Python distribution.

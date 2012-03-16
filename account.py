@@ -73,7 +73,7 @@ class AccountHtmlRepresentation(HtmlRepresentation):
             teams.append(str(A(name, href=team['href'])))
         table = TABLE()
         table.append(TR(TH('Description'),
-                        TD(markdown_to_html(account.get('description')))))
+                        TD(self.to_html(account.get('description')))))
         table.append(TR(TH('Teams'),
                         TD(', '.join(teams))))
         table.append(TR(TH('Email'),
@@ -160,7 +160,9 @@ class GET_AccountEdit(AccountMixin, MethodMixin, GET):
                             descr='Must be given if a new password'
                             ' is specified above.'),
               StringField('email', title='Email', length=30),
-              TextField('description', title='Description'),
+              TextField('description', title='Description',
+                        descr=' In [Markdown](http://daringfireball.net/'
+                        'projects/markdown/) format.'),
               MultiSelectField('teams', title='Teams',
                                check=False,
                                descr='Indicate team memberships'
@@ -186,7 +188,7 @@ class GET_AccountEdit(AccountMixin, MethodMixin, GET):
             default = dict()
         default['url'] = request.headers['Referer'] or \
                          application.get_url('account', self.account)
-        data['form'] = dict(fields=self.get_fields_data(skip=skip,
+        data['form'] = dict(fields=self.get_data_fields(skip=skip,
                                                         fill=fill,
                                                         default=default),
                             values=values,
@@ -269,7 +271,7 @@ class GET_AccountCreate(MethodMixin, GET):
     def get_data_resource(self, resource, request, application):
         data = dict(title='Create account')
         fill = dict(teams=dict(options=[str(t) for t in self.db.get_teams()]))
-        data['form'] = dict(fields=self.get_fields_data(fill=fill),
+        data['form'] = dict(fields=self.get_data_fields(fill=fill),
                             title='Enter data for new account',
                             label='Create',
                             href=resource.get_url(),
