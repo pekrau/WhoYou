@@ -42,21 +42,22 @@ class GET_Accounts(MethodMixin, GET):
     def is_accessible(self):
         return self.is_login_admin()
 
-    def get_data_resource(self, resource, request, application):
+    def get_data_resource(self, request):
         data = dict(title='Accounts')
         data['accounts'] = []
         for account in self.db.get_accounts():
             accountdata = account.get_data()
-            accountdata['href'] = application.get_url('account', account)
+            accountdata['href'] = request.application.get_url('account',
+                                                              account)
             accountdata['teams'] = []
             for team in account.get_teams():
                 teamdata = dict(name=str(team),
-                                href=application.get_url('team', team),
+                                href=request.application.get_url('team', team),
                                 is_admin=team.is_admin(account))
                 accountdata['teams'].append(teamdata)
             data['accounts'].append(accountdata)
         data['operations'] = [dict(title='Create account',
-                                   href=application.get_url('account'))]
+                                   href=request.application.get_url('account'))]
         return data
 
 
@@ -86,25 +87,23 @@ class AccountHtmlRepresentation(HtmlRepresentation):
 class AccountMixin(object):
     "Mixin class to set the account to operate on."
 
-    def set_current(self, resource, request, application):
+    def set_current(self, request):
         """Set the account to operate on.
         This handles the case where an account name contains a dot
         and a short (<=4 chars) last name, which will otherwise
         be confused for a FORMAT specification.
         """
-        variables = resource.variables
         try:
-            self.account = Account(self.db, variables['account'])
+            self.account = Account(self.db, request.variables['account'])
         except KeyError:
-            if not variables.get('FORMAT'):
+            if not request.variables.get('FORMAT'):
                 raise HTTP_NOT_FOUND
-            name = variables['account'] + variables['FORMAT']
+            name = request.variables['account'] + request.variables['FORMAT']
             try:
                 self.account = Account(self.db, name)
             except KeyError:
                 raise HTTP_NOT_FOUND
-            else:
-                resource.undo_format_specifier('account')
+            request.undo_format_specifier('account')
 
     def is_login_account(self):
         "Is the login account the same as the account to operate on?"
@@ -121,21 +120,19 @@ class GET_Account(AccountMixin, MethodMixin, GET):
     def is_accessible(self):
         return self.is_login_admin() or self.is_login_account()
 
-    def get_data_operations(self, resource, request, application):
+    def get_data_operations(self, request):
         "Return the operations response data."
-        return [dict(title='Edit account',
-                     href=application.get_url('account',
-                                              self.account.name,
-                                              'edit'))]
+        url = request.application.get_url('account', self.account.name, 'edit')
+        return [dict(title='Edit account', href=url)]
 
-    def get_data_resource(self, resource, request, application):
+    def get_data_resource(self, request):
         data = dict(title="Account %s" % self.account,
                     account=self.account.get_data())
         teams = []
         for name in data['account'].pop('teams'):
             is_admin = self.db.get_team(name).is_admin(self.account)
             teams.append(dict(name=name,
-                              href=application.get_url('team', name),
+                              href=request.application.get_url('team', name),
                               is_admin=is_admin))
         data['account']['teams'] = teams
         return data
@@ -172,7 +169,7 @@ class GET_AccountEdit(AccountMixin, MethodMixin, GET):
     def is_accessible(self):
         return self.is_login_admin() or self.is_login_account()
 
-    def get_data_resource(self, resource, request, application):
+    def get_data_resource(self, request):
         data = dict(title="Edit account %s" % self.account)
         values = dict(name=self.account.name,
                       email=self.account.email,
@@ -187,16 +184,16 @@ class GET_AccountEdit(AccountMixin, MethodMixin, GET):
             fill = dict()
             default = dict()
         default['url'] = request.headers['Referer'] or \
-                         application.get_url('account', self.account)
+                         request.application.get_url('account', self.account)
+        url = request.application.get_url('account', self.account.name)
         data['form'] = dict(fields=self.get_data_fields(skip=skip,
                                                         fill=fill,
                                                         default=default),
                             values=values,
                             title='Modify account data',
                             label='Save',
-                            href=resource.get_url(),
-                            cancel=application.get_url('account',
-                                                       self.account.name))
+                            href=request.get_url(),
+                            cancel=url)
         return data
 
 
@@ -208,7 +205,7 @@ class POST_AccountEdit(AccountMixin, MethodMixin, RedirectMixin, POST):
     def is_accessible(self):
         return self.is_login_admin() or self.is_login_account()
 
-    def handle(self, resource, request, application):
+    def handle(self, request):
         "Handle the request; perform actions according to the request."
         if self.is_login_admin():
             skip = set(['password'])
@@ -235,8 +232,8 @@ class POST_AccountEdit(AccountMixin, MethodMixin, RedirectMixin, POST):
         self.account.save()
         if self.is_login_admin():
             self.account.set_teams(values.get('teams', []))
-        self.set_redirect(values.get('url', application.get_url('account',
-                                                                self.account)))
+            url = request.application.get_url('account', self.account)
+            self.set_redirect(values.get('url', url))
 
 
 class GET_AccountCreate(MethodMixin, GET):
@@ -268,14 +265,14 @@ class GET_AccountCreate(MethodMixin, GET):
     def is_accessible(self):
         return self.is_login_admin()
 
-    def get_data_resource(self, resource, request, application):
+    def get_data_resource(self, request):
         data = dict(title='Create account')
         fill = dict(teams=dict(options=[str(t) for t in self.db.get_teams()]))
         data['form'] = dict(fields=self.get_data_fields(fill=fill),
                             title='Enter data for new account',
                             label='Create',
-                            href=resource.get_url(),
-                            cancel=application.get_url('accounts'))
+                            href=request.get_url(),
+                            cancel=request.application.get_url('accounts'))
         return data
 
 
@@ -287,7 +284,7 @@ class POST_AccountCreate(MethodMixin, RedirectMixin, POST):
     def is_accessible(self):
         return self.is_login_admin()
 
-    def handle(self, resource, request, application):
+    def handle(self, request):
         "Handle the request; perform actions according to the request."
         values = self.parse_fields(request)
         values['name'] = values['name'].strip()
@@ -316,4 +313,4 @@ class POST_AccountCreate(MethodMixin, RedirectMixin, POST):
         self.account.description = values.get('description', None)
         self.account.save()
         self.account.set_teams(values.get('teams', []))
-        self.set_redirect(application.get_url('account', self.account))
+        self.set_redirect(request.application.get_url('account', self.account))

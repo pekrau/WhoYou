@@ -4,9 +4,8 @@ Apache WSGI interface using the 'wrapid' package.
 """
 
 import wrapid
-from wrapid.resource import Resource
 from wrapid.application import Application
-from wrapid.static import GET_Static
+from wrapid.file import GET_File
 
 import whoyou
 from whoyou import configuration
@@ -16,7 +15,7 @@ from whoyou.team import *
 from whoyou.documentation import *
 
 # Package dependency
-assert wrapid.__version__ == '12.3'
+assert wrapid.__version__ == '12.4'
 
 
 application = Application(name='WhoYou',
@@ -26,49 +25,52 @@ application = Application(name='WhoYou',
 
 
 # Home
-application.append(Resource('/',
-                            type='Home',
-                            GET=GET_Home))
+application.add_resource('/',
+                         name='Home',
+                         GET=GET_Home)
 
 # Static resources; accessed often, keep at beginning of the chain.
-application.append(Resource('/static/{filename}',
-                            type='File',
-                            GET=GET_Static(configuration.STATIC_DIR,
-                                           cache_control='max-age=300')))
+class GET_File_static(GET_File):
+    dirpath       = configuration.STATIC_DIR
+    cache_control = 'max-age=300'
+
+application.add_resource('/static/{filename}',
+                         name='File',
+                         GET=GET_File_static)
 
 # Account resources
-application.append(Resource('/accounts',
-                            type='Account list',
-                            GET=GET_Accounts))
-application.append(Resource('/account/{account}',
-                            type='Account',
-                            GET=GET_Account))
-application.append(Resource('/account/{account}/edit',
-                            type='Account edit',
-                            GET=GET_AccountEdit,
-                            POST=POST_AccountEdit))
-application.append(Resource('/account',
-                            type='Account create',
-                            GET=GET_AccountCreate,
-                            POST=POST_AccountCreate))
+application.add_resource('/accounts',
+                         name='Account list',
+                         GET=GET_Accounts)
+application.add_resource('/account/{account}',
+                         name='Account',
+                         GET=GET_Account)
+application.add_resource('/account/{account}/edit',
+                         name='Account edit',
+                         GET=GET_AccountEdit,
+                         POST=POST_AccountEdit)
+application.add_resource('/account',
+                         name='Account create',
+                         GET=GET_AccountCreate,
+                         POST=POST_AccountCreate)
 
 # Team resources
-application.append(Resource('/teams',
-                            type='Team list',
-                            GET=GET_Teams))
-application.append(Resource('/team/{team}',
-                            type='Team',
-                            GET=GET_Team))
-application.append(Resource('/team/{team}/edit',
-                            type='Team edit',
-                            GET=GET_TeamEdit,
-                            POST=POST_TeamEdit))
-application.append(Resource('/team',
-                            type='Team create',
-                            GET=GET_TeamCreate,
-                            POST=POST_TeamCreate))
+application.add_resource('/teams',
+                         name='Team list',
+                         GET=GET_Teams)
+application.add_resource('/team/{team}',
+                         name='Team',
+                         GET=GET_Team)
+application.add_resource('/team/{team}/edit',
+                         name='Team edit',
+                         GET=GET_TeamEdit,
+                         POST=POST_TeamEdit)
+application.add_resource('/team',
+                         name='Team create',
+                         GET=GET_TeamCreate,
+                         POST=POST_TeamCreate)
 
-# Other resources
-application.append(Resource('/doc',
-                            type='Documentation API',
-                            GET=GET_WhoYouApiDocumentation))
+# Documentation resources
+application.add_resource('/doc',
+                         name='Documentation API',
+                         GET=GET_WhoYouApiDocumentation)

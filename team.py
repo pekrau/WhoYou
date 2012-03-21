@@ -42,22 +42,23 @@ class GET_Teams(MethodMixin, GET):
     def is_accessible(self):
         return self.is_login_admin()
 
-    def get_data_operations(self, resource, request, application):
+    def get_data_operations(self, request):
         "Return the operations response data."
         return [dict(title='Create team',
-                     href=application.get_url('team'))]
+                     href=request.application.get_url('team'))]
 
-    def get_data_resource(self, resource, request, application):
+    def get_data_resource(self, request):
         "Return the dictionary with the resource-specific response data."
         data = dict(title='Teams')
         data['teams'] = []
+        get_url = request.application.get_url
         for team in self.db.get_teams():
             teamdata = team.get_data()
-            teamdata['href'] = application.get_url('team', team)
+            teamdata['href'] = get_url('team', team)
             teamdata['members'] = []
             for account in team.get_members():
                 accountdata = dict(name=str(account),
-                                   href=application.get_url('account', account),
+                                   href=get_url('account', account),
                                    is_admin=team.is_admin(account))
                 teamdata['members'].append(accountdata)
             data['teams'].append(teamdata)
@@ -90,25 +91,23 @@ class TeamHtmlRepresentation(HtmlRepresentation):
 class TeamMixin(object):
     "Mixin class to set the team to operate on."
 
-    def set_current(self, resource, request, application):
+    def set_current(self, request):
         """Set the team to operate on.
         This handles the case where a team name contains a dot
         and a short (<=4 chars) last name, which will otherwise
         be confused for a FORMAT specification.
         """
-        variables = resource.variables
         try:
-            self.team = Team(self.db, variables['team'])
+            self.team = Team(self.db, request.variables['team'])
         except KeyError:
-            if not variables.get('FORMAT'):
+            if not request.variables.get('FORMAT'):
                 raise HTTP_NOT_FOUND
-            name = variables['team'] + variables['FORMAT']
+            name = request.variables['team'] + request.variables['FORMAT']
             try:
                 self.team = Team(self.db, name)
             except KeyError:
                 raise HTTP_NOT_FOUND
-            else:
-                resource.undo_format_specifier('team')
+            request.undo_format_specifier('team')
 
     def is_login_member(self):
         "Is the login account member of the team to operate on?"
@@ -125,20 +124,21 @@ class GET_Team(TeamMixin, MethodMixin, GET):
     def is_accessible(self):
         return self.is_login_admin() or self.is_login_member()
 
-    def get_data_operations(self, resource, request, application):
+    def get_data_operations(self, request):
         "Return the operations response data."
-        return [dict(title='Edit team',
-                     href=application.get_url('team', self.team.name, 'edit'))]
+        url = request.application.get_url('team', self.team.name, 'edit')
+        return [dict(title='Edit team', href=url)]
 
-    def get_data_resource(self, resource, request, application):
+    def get_data_resource(self, request):
         "Return the dictionary with the resource-specific response data."
         data = dict(title="Team %s" % self.team)
         data['team'] = self.team.get_data()
         members = []
         for name in data['team'].pop('members'):
+            url = request.application.get_url('account', name)
             is_admin = self.team.is_admin(self.db.get_account(name))
             members.append(dict(name=name,
-                                href=application.get_url('account', name),
+                                href=url,
                                 is_admin=is_admin))
         data['team']['members'] = members
         return data
@@ -162,20 +162,21 @@ class GET_TeamEdit(TeamMixin, MethodMixin, GET):
     def is_accessible(self):
         return self.is_login_admin() or self.is_login_member()
 
-    def get_data_resource(self, resource, request, application):
+    def get_data_resource(self, request):
         "Return the dictionary with the resource-specific response data."
         data = dict(title="Edit team %s" % self.team)
         values = dict(description=self.team.description)
         fill = dict(administrators=
                     dict(options=[str(m) for m in self.team.get_members()]))
         default = dict(administrators=[str(a) for a in self.team.get_admins()])
-        data['form'] = dict(fields=self.get_data_fields(fill=fill,
-                                                        default=default),
+        fields = self.get_data_fields(fill=fill, default=default)
+        url = request.application.get_url('team', self.team)
+        data['form'] = dict(fields=fields,
                             values=values,
                             label='Save',
                             title='Modify team data',
-                            href=resource.get_url(),
-                            cancel=application.get_url('team', self.team))
+                            href=request.get_url(),
+                            cancel=url)
         return data
 
 
@@ -187,13 +188,13 @@ class POST_TeamEdit(TeamMixin, MethodMixin, RedirectMixin, POST):
     def is_accessible(self):
         return self.is_login_admin() or self.is_login_member()
 
-    def handle(self, resource, request, application):
+    def handle(self, request):
         "Handle the request; perform actions according to the request."
         values = self.parse_fields(request)
         self.team.description = values.get('description', None)
         self.team.save()
         self.team.set_admins(values.get('administrators', []))
-        self.set_redirect(application.get_url('team', self.team))
+        self.set_redirect(request.application.get_url('team', self.team))
 
 
 class GET_TeamCreate(MethodMixin, GET):
@@ -213,14 +214,14 @@ class GET_TeamCreate(MethodMixin, GET):
     def is_accessible(self):
         return self.is_login_admin()
 
-    def get_data_resource(self, resource, request, application):
+    def get_data_resource(self, request):
         "Return the dictionary with the resource-specific response data."
         data = dict(title='Create team')
         data['form'] = dict(fields=self.get_data_fields(),
                             title='Enter data for new team',
                             label='Create',
-                            href=resource.get_url(),
-                            cancel=application.get_url('teams'))
+                            href=request.get_url(),
+                            cancel=request.application.get_url('teams'))
         return data
         
 
@@ -232,7 +233,7 @@ class POST_TeamCreate(MethodMixin, RedirectMixin, POST):
     def is_accessible(self):
         return self.is_login_admin()
 
-    def handle(self, resource, request, application):
+    def handle(self, request):
         "Handle the request; perform actions according to the request."
         values = self.parse_fields(request)
         values['name'] = values['name'].strip()
@@ -252,4 +253,4 @@ class POST_TeamCreate(MethodMixin, RedirectMixin, POST):
         self.team.name= values['name']
         self.team.description = values.get('description', None)
         self.team.save()
-        self.set_redirect(application.get_url('team', self.team))
+        self.set_redirect(request.application.get_url('team', self.team))

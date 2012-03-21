@@ -4,8 +4,8 @@ Mixin class for methods: authentication and database connection.
 """
 
 from wrapid.fields import *
-from wrapid.response import *
-from wrapid.resource import GET, POST, RedirectMixin
+from wrapid.responses import *
+from wrapid.methods import GET, POST, RedirectMixin
 from wrapid.login import LoginMixin
 
 from . import configuration
@@ -15,12 +15,12 @@ from .database import Database, Account, Team
 class MethodMixin(LoginMixin):
     "Mixin class for Method subclasses; database connect and authentication."
 
-    def prepare(self, resource, request, application):
+    def prepare(self, request):
         "Connect to the database and authenticate the user."
         self.db = Database()
         self.db.open()      # Database must be open before logging in.
-        self.set_login(resource, request, application)
-        self.set_current(resource, request, application)
+        self.set_login(request)
+        self.set_current(request)
         self.check_access()
 
     def get_account(self, name, password=None):
@@ -39,7 +39,7 @@ class MethodMixin(LoginMixin):
     def finalize(self):
         self.db.close()
 
-    def set_current(self, resource, request, application):
+    def set_current(self, request):
         "Set the current entities to operate on."
         pass
 
@@ -61,22 +61,22 @@ class MethodMixin(LoginMixin):
         else:
             return False
 
-    def get_data_links(self, resource, request, application):
+    def get_data_links(self, request):
         "Return the links response data."
+        get_url = request.application.get_url
         links = []
         if self.is_login_admin():
             links.append(dict(title='Accounts',
                               resource='Account list',
-                              href=application.get_url('accounts')))
+                              href=get_url('accounts')))
         links.append(dict(title='My account',
                           resource='Account',
-                          href=application.get_url('account',
-                                                   self.login['name'])))
+                          href=get_url('account', self.login['name'])))
         if self.is_login_admin():
             links.append(dict(title='Teams',
                               resource='Team list',
-                              href=application.get_url('teams')))
+                              href=get_url('teams')))
         links.append(dict(title='Documentation: API',
                           resource='Documentation API',
-                          href=application.get_url('doc')))
+                          href=get_url('doc')))
         return links
