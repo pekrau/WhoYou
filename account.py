@@ -176,24 +176,24 @@ class GET_AccountEdit(AccountMixin, MethodMixin, GET):
                       description=self.account.description)
         if self.is_login_admin():
             skip = set(['password'])
-            fill = dict(teams=dict(options=[str(t)
-                                            for t in self.db.get_teams()]))
-            default = dict(teams=[str(t) for t in self.account.get_teams()])
+            override = dict(teams=dict(options=[str(t) for t
+                                                in self.db.get_teams()],
+                                       default=[str(t) for t
+                                                in self.account.get_teams()]))
         else:
             skip = set()
-            fill = dict()
-            default = dict()
-        default['url'] = request.headers['Referer'] or \
-                         request.application.get_url('account', self.account)
-        url = request.application.get_url('account', self.account.name)
+            override = dict()
+        url = request.headers['Referer'] or \
+              request.application.get_url('account', self.account)
+        override['url'] = dict(default=url)
+        cancel = request.application.get_url('account', self.account.name)
         data['form'] = dict(fields=self.get_data_fields(skip=skip,
-                                                        fill=fill,
-                                                        default=default),
+                                                        override=override),
                             values=values,
                             title='Modify account data',
                             label='Save',
                             href=request.get_url(),
-                            cancel=url)
+                            cancel=cancel)
         return data
 
 
@@ -267,8 +267,9 @@ class GET_AccountCreate(MethodMixin, GET):
 
     def get_data_resource(self, request):
         data = dict(title='Create account')
-        fill = dict(teams=dict(options=[str(t) for t in self.db.get_teams()]))
-        data['form'] = dict(fields=self.get_data_fields(fill=fill),
+        override = dict(teams=dict(options=[str(t) for t
+                                            in self.db.get_teams()]))
+        data['form'] = dict(fields=self.get_data_fields(override=override),
                             title='Enter data for new account',
                             label='Create',
                             href=request.get_url(),

@@ -165,18 +165,17 @@ class GET_TeamEdit(TeamMixin, MethodMixin, GET):
     def get_data_resource(self, request):
         "Return the dictionary with the resource-specific response data."
         data = dict(title="Edit team %s" % self.team)
-        values = dict(description=self.team.description)
-        fill = dict(administrators=
-                    dict(options=[str(m) for m in self.team.get_members()]))
-        default = dict(administrators=[str(a) for a in self.team.get_admins()])
-        fields = self.get_data_fields(fill=fill, default=default)
-        url = request.application.get_url('team', self.team)
-        data['form'] = dict(fields=fields,
-                            values=values,
+        override = dict(administrators=dict(options=[str(m) for m in
+                                                     self.team.get_members()],
+                                            default=[str(a) for a in
+                                                     self.team.get_admins()]))
+        cancel = request.application.get_url('team', self.team)
+        data['form'] = dict(fields=self.get_data_fields(override=override),
+                            values=dict(description=self.team.description),
                             label='Save',
                             title='Modify team data',
                             href=request.get_url(),
-                            cancel=url)
+                            cancel=cancel)
         return data
 
 
