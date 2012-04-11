@@ -205,7 +205,7 @@ class POST_AccountEdit(AccountMixin, MethodMixin, RedirectMixin, POST):
     def is_accessible(self):
         return self.is_login_admin() or self.is_login_account()
 
-    def handle(self, request):
+    def process(self, request):
         "Handle the request; perform actions according to the request."
         if self.is_login_admin():
             skip = set(['password'])
@@ -285,7 +285,7 @@ class POST_AccountCreate(MethodMixin, RedirectMixin, POST):
     def is_accessible(self):
         return self.is_login_admin()
 
-    def handle(self, request):
+    def process(self, request):
         "Handle the request; perform actions according to the request."
         values = self.parse_fields(request)
         values['name'] = values['name'].strip()

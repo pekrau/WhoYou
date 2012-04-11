@@ -187,7 +187,7 @@ class POST_TeamEdit(TeamMixin, MethodMixin, RedirectMixin, POST):
     def is_accessible(self):
         return self.is_login_admin() or self.is_login_member()
 
-    def handle(self, request):
+    def process(self, request):
         "Handle the request; perform actions according to the request."
         values = self.parse_fields(request)
         self.team.description = values.get('description', None)
@@ -232,7 +232,7 @@ class POST_TeamCreate(MethodMixin, RedirectMixin, POST):
     def is_accessible(self):
         return self.is_login_admin()
 
-    def handle(self, request):
+    def process(self, request):
         "Handle the request; perform actions according to the request."
         values = self.parse_fields(request)
         values['name'] = values['name'].strip()

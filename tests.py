@@ -31,7 +31,7 @@ class TestAccess(TestBase):
         self.assertEqual(response.status, httplib.OK,
                          msg="HTTP status %s" % response.status)
         headers = self.get_headers(response)
-        self.assert_(headers['content-type'] == 'application/json',
+        self.assert_(headers['content-type'].startswith('application/json'),
                      msg=headers['content-type'])
         self.get_json_data(response)
 
@@ -64,7 +64,8 @@ class TestAccount(TestBase):
         self.assertEqual(response.status, httplib.OK,
                          msg="HTTP status %s" % response.status)
         headers = self.get_headers(response)
-        self.assert_(headers.get('content-type') == 'application/json')
+        self.assert_(headers['content-type'].startswith('application/json'),
+                     msg=headers['content-type'])
         self.get_json_data(response)
 
     def test_GET_account_admin(self):

@@ -15,7 +15,8 @@ the server.
 The account passwords are stored as hashes using a salt which must
 be set at installation time.
 
-The system is written in Python 2.6; 2.7 should also work.
+The system is written in Python 2.6. The following source code
+packages are needed:
 
 - [https://github.com/pekrau/whoyou](https://github.com/pekrau/whoyou):
   Source code for the WhoYou system.
