@@ -7,7 +7,7 @@ from .method_mixin import *
 from .representation import *
 
 
-class GET_Home(MethodMixin, GET):
+class Home(MethodMixin, GET):
     "The WhoYou home page."
 
     outreprs = [JsonRepresentation,

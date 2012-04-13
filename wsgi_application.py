@@ -5,7 +5,7 @@ Apache WSGI interface using the 'wrapid' package.
 
 import wrapid
 from wrapid.application import Application
-from wrapid.file import GET_File
+from wrapid.file import File
 
 import whoyou
 from whoyou import configuration
@@ -27,16 +27,17 @@ application = Application(name='WhoYou',
 # Home
 application.add_resource('/',
                          name='Home',
-                         GET=GET_Home)
+                         GET=Home)
 
 # Static resources; accessed often, keep at beginning of the chain.
-class GET_File_static(GET_File):
+class StaticFile(File):
+    "Return the specified file from a predefined server directory."
     dirpath       = configuration.STATIC_DIR
     cache_control = 'max-age=300'
 
-application.add_resource('/static/{filename}',
+application.add_resource('/static/{filepath:path}',
                          name='File',
-                         GET=GET_File_static)
+                         GET=StaticFile)
 
 # Account resources
 application.add_resource('/accounts',
