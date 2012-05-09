@@ -1,11 +1,9 @@
 """ WhoYou: Simple accounts database for web applications.
 
-General representation classes.
+General HTML representation classes.
 """
 
 from wrapid.html_representation import *
-from wrapid.json_representation import JsonRepresentation
-from wrapid.text_representation import TextRepresentation
 
 
 class HtmlRepresentation(BaseHtmlRepresentation):

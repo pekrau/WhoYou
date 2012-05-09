@@ -15,7 +15,7 @@ from whoyou.team import *
 from whoyou.documentation import *
 
 # Package dependency
-assert wrapid.__version__ == '12.4'
+assert wrapid.__version__ == '12.5'
 
 
 application = Application(name='WhoYou',

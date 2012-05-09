@@ -5,9 +5,8 @@ Team resources.
 
 import string
 
+from .base import *
 from .database import Account
-from .method_mixin import *
-from .representation import *
 
 
 class TeamsHtmlRepresentation(HtmlRepresentation):

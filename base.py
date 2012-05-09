@@ -1,15 +1,18 @@
 """ WhoYou: Simple accounts database for web applications.
 
-Mixin class for methods: authentication and database connection.
+Base and mixin classes.
 """
 
 from wrapid.fields import *
 from wrapid.responses import *
 from wrapid.methods import GET, POST, RedirectMixin
 from wrapid.login import LoginMixin
+from wrapid.json_representation import JsonRepresentation
+from wrapid.text_representation import TextRepresentation
 
 from . import configuration
 from .database import Database, Account, Team
+from .html_representation import *
 
 
 class MethodMixin(LoginMixin):
