@@ -240,7 +240,7 @@ class Account(object):
         Add to those mentioned, and not already member of.
         """
         current = set([str(t) for t in self.get_teams()])
-        new = set(teamnames)
+        new = set(teamnames or [])
         for name in current.difference(new):
             try:
                 team = self.db.get_team(name)
