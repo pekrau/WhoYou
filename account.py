@@ -230,8 +230,11 @@ class POST_AccountEdit(AccountMixin, MethodMixin, RedirectMixin, POST):
         self.account.save()
         if self.is_login_admin():
             self.account.set_teams(values.get('teams', []))
+        try:
+            url = values['url']
+        except KeyError:
             url = request.application.get_url('account', self.account)
-            self.set_redirect(values.get('url', url))
+        self.set_redirect(values.get('url', url))
 
 
 class GET_AccountCreate(MethodMixin, GET):
