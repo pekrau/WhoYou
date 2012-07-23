@@ -4,6 +4,7 @@ Apache WSGI interface using the 'wrapid' package.
 """
 
 import wrapid
+assert wrapid.__version__ in ('12.5', '12.7')
 from wrapid.application import Application
 from wrapid.file import File
 
@@ -13,9 +14,6 @@ from whoyou.home import *
 from whoyou.account import *
 from whoyou.team import *
 from whoyou.documentation import *
-
-# Package dependency
-assert wrapid.__version__ == '12.5'
 
 
 application = Application(name='WhoYou',
