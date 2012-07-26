@@ -79,7 +79,10 @@ class MethodMixin(LoginMixin):
             links.append(dict(title='Teams',
                               resource='Team list',
                               href=get_url('teams')))
-        links.append(dict(title='Documentation: API',
-                          resource='Documentation API',
-                          href=get_url('doc')))
         return links
+
+
+    def get_data_documentation(self, request):
+        get_url = request.application.get_url
+        return [dict(title='API',
+                     href=get_url('doc/api'))]

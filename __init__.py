@@ -1,3 +1,3 @@
 " WhoYou: Simple accounts database for web applications."
 
-__version__ = '12.5'
+__version__ = '12.7'

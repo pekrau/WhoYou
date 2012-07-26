@@ -70,6 +70,6 @@ application.add_resource('/team',
                          POST=POST_TeamCreate)
 
 # Documentation resources
-application.add_resource('/doc',
+application.add_resource('/doc/api',
                          name='Documentation API',
                          GET=GET_WhoYouApiDocumentation)
