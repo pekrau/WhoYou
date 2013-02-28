@@ -26,7 +26,7 @@ MIN_PASSWORD_LENGTH = 6
 # Do not change anything below this.
 #----------------------------------------------------------------------
 # The 'site_XXX' module may redefine any of the above global variables.
-HOSTNAME = socket.gethostname()
+HOSTNAME = socket.gethostname().split('.')[0]
 MODULENAME = "whoyou.site_%s" % HOSTNAME
 try:
     __import__(MODULENAME)
